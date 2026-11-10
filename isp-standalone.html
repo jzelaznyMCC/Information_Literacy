@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Information Search Process</title>
+<style>
+/* Layout: the feelings curve is the stage and the navigation; six tabs sit under its six points; one detail panel below. */
+:root{
+  --bg:#ECEFF3; --surface:#F9FAFC; --ink:#15223A; --muted:#4F5C70; --line:#C9D1DB;
+  --accent:#A02A6D; --accent-soft:#F0DCE7; --on-accent:#FFFFFF;
+  --hold:8s;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0F1724; --surface:#172236; --ink:#E7ECF3; --muted:#A5B1C2; --line:#2D3B53;
+  --accent:#F28AC0; --accent-soft:#3A2235; --on-accent:#1B0D16; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#0F1724; --surface:#172236; --ink:#E7ECF3; --muted:#A5B1C2; --line:#2D3B53;
+  --accent:#F28AC0; --accent-soft:#3A2235; --on-accent:#1B0D16; color-scheme:dark }
+
+*{box-sizing:border-box}
+html{font-size:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:1rem;line-height:1.5}
+.wrap{max-width:980px;margin:0 auto;padding:2.25rem 16px 2rem;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap>*+*{margin-top:1.75rem}
+header>*{margin:0}
+header>*+*{margin-top:.5rem}
+.eyebrow{font-size:.8125rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:700}
+h1{font-weight:800;font-size:clamp(1.9rem,5.4vw,3.1rem);line-height:1.05;letter-spacing:-.01em}
+.sub{color:var(--muted);max-width:62ch}
+.howto{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:.9rem 1.1rem;max-width:72ch}
+.howto h2{margin:0 0 .35rem;font-size:1rem}
+.howto p{margin:0}
+.howto p+p{margin-top:.35rem}
+
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+.caption{margin:0 0 .4rem;font-size:.875rem;color:var(--muted)}
+#chart{width:100%;position:relative}
+#chart svg{display:block;overflow:visible;width:100%;height:auto}
+.base{fill:none;stroke:var(--line);stroke-width:3;stroke-linecap:round}
+.trav{fill:none;stroke:var(--accent);stroke-width:4;stroke-linecap:round;transition:stroke-dasharray 1.1s cubic-bezier(.45,0,.3,1)}
+.guide{stroke:var(--line);stroke-width:1;stroke-dasharray:2 4}
+.guide.on{stroke:var(--accent);stroke-width:2;stroke-dasharray:none}
+.dot{fill:var(--bg);stroke:var(--muted);stroke-width:2}
+.dot.done{fill:var(--accent);stroke:var(--accent)}
+.hit{fill:transparent;cursor:pointer}
+.lab{font-size:13px;fill:var(--muted)}
+.lab.on{fill:var(--ink);font-weight:700;font-size:15px}
+#marker{position:absolute;left:0;top:0;width:34px;height:34px;margin:0;border-radius:50%;offset-anchor:50% 50%;background:var(--accent-soft);
+  offset-rotate:0deg;offset-distance:0;transition:offset-distance 1.1s cubic-bezier(.45,0,.3,1);pointer-events:none}
+#marker::after{content:"";position:absolute;left:8px;top:8px;width:18px;height:18px;border-radius:50%;background:var(--accent);border:3px solid var(--bg)}
+
+.tabs{display:grid;grid-template-columns:repeat(6,1fr);border-top:1px solid var(--line);margin:0;padding:0}
+.tab{position:relative;background:none;border:0;color:var(--muted);font:inherit;cursor:pointer;
+  padding:.6rem 2px .75rem;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0}
+.tab .n{font-weight:800;font-size:1.125rem;font-variant-numeric:tabular-nums}
+.tab .nm{font-size:.875rem;max-width:100%;overflow-wrap:anywhere;text-align:center}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{color:var(--ink);font-weight:700}
+.tab[aria-selected="true"] .n{color:var(--accent);text-decoration:underline;text-decoration-thickness:3px;text-underline-offset:3px}
+.tab::before{content:"";position:absolute;left:0;right:0;top:-1px;height:3px;background:transparent}
+.tab[aria-selected="true"]::before{background:var(--line)}
+.tab::after{content:"";position:absolute;left:0;top:-1px;height:3px;width:0;background:var(--accent)}
+.tab[aria-selected="true"]::after{width:100%}
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px;border-radius:4px}
+.tab:focus-visible{outline-offset:-3px}
+
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:.625rem}
+.btn{font:inherit;font-weight:700;cursor:pointer;border-radius:999px;padding:.55rem 1.1rem;min-height:44px;
+  border:2px solid var(--line);background:var(--surface);color:var(--ink);display:inline-flex;align-items:center;gap:.5rem}
+.btn:hover:not(:disabled){border-color:var(--ink)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);padding:.55rem 1.4rem}
+.btn svg{width:12px;height:12px;fill:currentColor}
+.count{margin-left:auto;color:var(--muted);font-size:.875rem;font-variant-numeric:tabular-nums}
+
+.progress{height:4px;background:var(--line);border-radius:2px;margin-top:.75rem;overflow:hidden}
+.progress span{display:block;height:100%;width:0;background:var(--accent)}
+.playing .progress span{animation:hold var(--hold) linear forwards}
+@keyframes hold{from{width:0}to{width:100%}}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:clamp(1.1rem,3.5vw,1.9rem)}
+.panel>*+*{margin-top:1.3rem}
+.panel h2{font-weight:800;font-size:clamp(1.5rem,4vw,2.1rem);line-height:1.1;margin:0}
+.panel h2 span{color:var(--accent);font-variant-numeric:tabular-nums}
+.story{background:var(--accent-soft);border-left:5px solid var(--accent);border-radius:10px;padding:.85rem 1.1rem 1rem}
+.story-head{margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:.375rem .75rem;font-size:.8125rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.flag{background:var(--accent);color:var(--on-accent);border-radius:999px;padding:.125rem .7rem;letter-spacing:0;text-transform:none;font-size:.8125rem}
+#s-text{margin:.4rem 0 0;max-width:72ch}
+.cols{display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:1.5rem 2rem}
+.cols>div{min-width:0}
+.cols h3{margin:0 0 .5rem;font-size:.8125rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:700;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.cols h3 small{font-size:inherit;font-weight:400;letter-spacing:.04em;text-transform:none}
+.cols h3 svg{width:22px;height:22px;flex:none;fill:none;stroke:var(--accent);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.cols p{margin:0}
+.cols ul{margin:0;padding-left:1.1em}
+.cols li+li{margin-top:.25rem}
+.feel{font-weight:600;font-size:clamp(1.35rem,3.2vw,1.75rem);line-height:1.15;color:var(--accent)}
+.note{margin:0;color:var(--muted);font-size:.9375rem;max-width:70ch}
+.note strong{color:var(--ink)}
+footer{border-top:1px solid var(--line);padding-top:1.1rem;font-size:.875rem;color:var(--muted);max-width:72ch}
+footer p{margin:0}
+footer p+p{margin-top:.35rem}
+footer a{color:var(--ink)}
+
+[hidden]{display:none!important}
+@media (max-width:719px){ .cols{grid-template-columns:1fr} }
+@media (max-width:599px){
+  .tab .nm{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .lab:not(.on){display:none}
+  .count{margin-left:0;width:100%}
+}
+@media (prefers-reduced-motion: reduce){
+  .trav,#marker{transition:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap" id="root">
+  <header>
+    <p class="eyebrow">Kuhlthau’s model</p>
+    <h1>Information Search Process</h1>
+    <p class="sub">A model of the cognitive, affective, and behavioral stages people experience when doing research.</p>
+  </header>
+
+  <section class="howto" aria-labelledby="howto-h">
+    <h2 id="howto-h">How to use this page</h2>
+    <p>Press <strong>Play</strong> to follow Maya, a student writing a research paper, through the six stages. Each step is shown for a few seconds before the next one appears. Press <strong>Pause</strong> at any time.</p>
+    <p>To go at your own pace, use <strong>Previous</strong> and <strong>Next</strong>, or choose a stage by its number. Keyboard users can press Tab to reach the stage list and the left and right arrow keys to move between stages.</p>
+  </section>
+
+  <section aria-labelledby="curve-h">
+    <h2 id="curve-h" class="caption">How researchers feel at each stage. Higher on the curve means more confident.</h2>
+    <div id="chart" aria-hidden="true"><div id="marker"></div></div>
+    <div class="tabs" role="tablist" aria-label="Stages of the process" id="tabs"></div>
+  </section>
+
+  <div>
+    <div class="controls">
+      <button class="btn primary" id="play" type="button" aria-describedby="count"></button>
+      <button class="btn" id="back" type="button">Previous</button>
+      <button class="btn" id="next" type="button">Next</button>
+      <span class="count" id="count"></span>
+    </div>
+    <div class="progress" aria-hidden="true"><span id="bar"></span></div>
+  </div>
+
+  <div class="sr-only" aria-live="polite" id="announce"></div>
+
+  <section class="panel" id="panel" role="tabpanel" aria-labelledby="p-title">
+    <h2 id="p-title"></h2>
+    <div class="story">
+      <p class="story-head"><span>Follow along: Maya’s research paper</span><span class="flag" id="s-flag" hidden></span></p>
+      <p id="s-text"></p>
+    </div>
+    <div class="cols">
+      <div><h3><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/></svg>Thoughts <small>(cognitive)</small></h3><p id="p-think"></p></div>
+      <div><h3><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 20s-7.5-4.6-7.5-10.2A4.2 4.2 0 0 1 12 7.2a4.2 4.2 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z"/></svg>Feelings <small>(affective)</small></h3><p class="feel" id="p-feel"></p></div>
+      <div><h3><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 9l11 4.5-4.8 1.7L13.5 20zM4 4l2.2 2.2M10 2.5v3M2.5 10h3"/></svg>Actions <small>(physical)</small></h3><ul id="p-act"></ul></div>
+    </div>
+  </section>
+
+  <p class="note"><strong>The process is dynamic and iterative.</strong> Students may move back and forth between stages as needed. In Maya’s story, her first focus does not hold up during Collection, so she returns to Exploration before moving forward again.</p>
+
+  <footer>
+    <p>Created by [YOUR NAME]. Based on Carol Kuhlthau’s Information Search Process.</p>
+    <p>Licensed under [LICENSE, e.g. CC BY-NC-SA 4.0].</p>
+    <p>Something not working? Email [YOUR CONTACT ADDRESS] and say which page, which step, and which device or browser you were using.</p>
+  </footer>
+</div>
+
+<script>
+var STAGES = [
+  {name:"Initiation", short:"Uncertainty", v:0.28, think:"Recognize a need for information.", feel:"Uncertainty, apprehension", act:["Seek background information","Define the task"]},
+  {name:"Selection", short:"Optimism", v:0.50, think:"Choose a general topic or focus.", feel:"Optimism", act:["Browse and scan sources","Narrow the topic"]},
+  {name:"Exploration", short:"Confusion", v:0.10, think:"Investigate information on the topic and explore different perspectives.", feel:"Confusion, frustration, doubt", act:["Read and explore","Take notes","Try different approaches"]},
+  {name:"Formulation", short:"Clarity", v:0.46, think:"Develop a focused question or thesis.", feel:"Clarity, confidence", act:["Refine the focus","Develop a research question or thesis"]},
+  {name:"Collection", short:"Confidence", v:0.76, think:"Gather relevant information systematically.", feel:"Increased confidence, interest", act:["Find and evaluate relevant sources","Take organized notes","Extract key ideas"]},
+  {name:"Presentation", short:"Satisfaction", v:0.90, think:"Complete the project and prepare to communicate findings.", feel:"Satisfaction, relief, accomplishment", act:["Synthesize information","Create and revise the product","Communicate findings"]}
+];
+var STORY = [
+  {s:0, t:"Maya’s environmental studies professor assigns an eight-page research paper on any environmental issue, due in four weeks. She rereads the assignment sheet and is not sure where to begin."},
+  {s:1, t:"After a week of record temperatures at home last summer, Maya decides to write about cities and extreme heat. Having a topic is a relief."},
+  {s:2, t:"Her first database searches return hundreds of articles on urban planning, public health, and climate modeling. Her notes pile up without a pattern, and she wonders if she picked the wrong topic."},
+  {s:3, t:"A librarian helps her narrow things down, and an article on tree canopy gives her a focus: does tree cover reduce heat-related illness in low-income neighborhoods?"},
+  {s:4, t:"Maya searches with a purpose and keeps organized notes. But after several sessions she has found only two studies that connect tree cover to illness data. Her question is too narrow for the evidence available."},
+  {s:2, t:"She goes back to reading broadly: cool roofs, cooling centers, and the history of housing policy. The frustration returns, but this time she knows what she is looking for."},
+  {s:3, t:"She finds research showing that formerly redlined neighborhoods are measurably hotter today. Her revised question: why are these neighborhoods hotter, and which cooling strategies work best there?"},
+  {s:4, t:"Now the sources fit. Maya gathers studies, city reports, and temperature maps, and her notes fall into an outline."},
+  {s:5, t:"She drafts the paper, revises it after a writing center visit, and submits it. She is relieved, and proud of how far the question came."}
+];
+var SVG_NS = "http://www.w3.org/2000/svg";
+var ICON_PLAY = '<svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M2 1l9 5-9 5z"/></svg>';
+var ICON_PAUSE = '<svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M2 1h3v10H2zM7 1h3v10H7z"/></svg>';
+
+var cur = 0;        /* current stage index 0-5 */
+var step = 0;       /* current story step */
+var playing = false;
+var chart = null;   /* { base, trav, dots, labs, guides, lens, total, pathD } */
+var tabs = [];
+var lastWidth = 0;
+
+function $(id) { return document.getElementById(id); }
+
+function svgEl(name, attrs) {
+  var e = document.createElementNS(SVG_NS, name);
+  for (var k in attrs) { if (attrs.hasOwnProperty(k)) e.setAttribute(k, attrs[k]); }
+  return e;
+}
+
+function buildTabs() {
+  var holder = $("tabs");
+  for (var i = 0; i < STAGES.length; i++) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "tab";
+    b.id = "tab-" + i;
+    b.setAttribute("role", "tab");
+    b.setAttribute("aria-controls", "panel");
+    b.setAttribute("aria-label", "Stage " + (i + 1) + ": " + STAGES[i].name);
+    b.innerHTML = '<span class="n">' + (i + 1) + '</span><span class="nm">' + STAGES[i].name + '</span>';
+    b.onclick = makeStageHandler(i);
+    holder.appendChild(b);
+    tabs.push(b);
+  }
+  holder.onkeydown = onTabKey;
+}
+
+function makeStageHandler(i) {
+  return function () { stopPlay(); goStage(i); };
+}
+
+function onTabKey(e) {
+  var key = e.key || e.keyCode;
+  var t = cur;
+  if (key === "ArrowRight" || key === 39) t = Math.min(5, cur + 1);
+  else if (key === "ArrowLeft" || key === 37) t = Math.max(0, cur - 1);
+  else if (key === "Home" || key === 36) t = 0;
+  else if (key === "End" || key === 35) t = 5;
+  else return;
+  e.preventDefault();
+  stopPlay();
+  goStage(t);
+  tabs[t].focus();
+}
+
+function buildChart() {
+  var box = $("chart");
+  var W = box.clientWidth || 600;
+  var H = W < 600 ? 190 : 250;
+  var top = 44, bot = 46;
+  var i;
+  var pts = [];
+  for (i = 0; i < STAGES.length; i++) pts.push([(i + 0.5) / 6 * W, yOf(STAGES[i].v, H, top, bot)]);
+  var all = [[0, yOf(STAGES[0].v - 0.02, H, top, bot)]].concat(pts, [[W, yOf(STAGES[5].v - 0.04, H, top, bot)]]);
+  var d = "M" + all[0][0] + "," + all[0][1];
+  for (i = 0; i < all.length - 1; i++) {
+    var p0 = all[i - 1] || all[i], p1 = all[i], p2 = all[i + 1], p3 = all[i + 2] || p2;
+    d += " C" + (p1[0] + (p2[0] - p0[0]) / 6) + "," + (p1[1] + (p2[1] - p0[1]) / 6) + " " +
+         (p2[0] - (p3[0] - p1[0]) / 6) + "," + (p2[1] - (p3[1] - p1[1]) / 6) + " " + p2[0] + "," + p2[1];
+  }
+
+  var old = box.querySelector("svg");
+  if (old) box.removeChild(old);
+  var svg = svgEl("svg", {width: W, height: H, viewBox: "0 0 " + W + " " + H});
+  var guides = [], dots = [], labs = [];
+  for (i = 0; i < pts.length; i++) {
+    var g = svgEl("line", {"class": "guide", x1: pts[i][0], x2: pts[i][0], y1: pts[i][1], y2: H});
+    svg.appendChild(g); guides.push(g);
+  }
+  var base = svgEl("path", {"class": "base", d: d});
+  var trav = svgEl("path", {"class": "trav", d: d});
+  svg.appendChild(base); svg.appendChild(trav);
+  for (i = 0; i < pts.length; i++) {
+    var c = svgEl("circle", {"class": "dot", cx: pts[i][0], cy: pts[i][1], r: 6});
+    svg.appendChild(c); dots.push(c);
+    var low = STAGES[i].v < 0.2;
+    var t = svgEl("text", {"class": "lab", x: i === 0 ? pts[i][0] - 10 : i === 5 ? pts[i][0] + 10 : pts[i][0],
+      y: low ? pts[i][1] + 38 : pts[i][1] - 28, "text-anchor": i === 0 ? "start" : i === 5 ? "end" : "middle"});
+    t.appendChild(document.createTextNode(STAGES[i].short));
+    svg.appendChild(t); labs.push(t);
+  }
+  for (i = 0; i < pts.length; i++) {
+    var h = svgEl("circle", {"class": "hit", cx: pts[i][0], cy: pts[i][1], r: 20});
+    h.onclick = makeStageHandler(i);
+    svg.appendChild(h);
+  }
+  box.insertBefore(svg, $("marker"));
+
+  var total = base.getTotalLength();
+  var lens = [];
+  for (i = 0; i < pts.length; i++) {
+    var lo = 0, hi = total;
+    for (var k = 0; k < 28; k++) {
+      var m = (lo + hi) / 2;
+      if (base.getPointAtLength(m).x < pts[i][0]) lo = m; else hi = m;
+    }
+    lens.push((lo + hi) / 2);
+  }
+  chart = {base: base, trav: trav, dots: dots, labs: labs, guides: guides, lens: lens, total: total};
+
+  var marker = $("marker");
+  marker.style.offsetPath = 'path("' + d + '")';
+  drawPosition(true);
+  drawMarks();
+}
+
+function yOf(v, H, top, bot) { return top + (1 - v) * (H - top - bot); }
+
+function drawPosition(instant) {
+  if (!chart) return;
+  var pos = chart.lens[cur];
+  var marker = $("marker");
+  var trav = chart.trav;
+  if (instant) {
+    marker.style.transition = "none";
+    trav.style.transition = "none";
+  }
+  trav.setAttribute("stroke-dasharray", pos + " " + (chart.total + 10));
+  marker.style.offsetDistance = pos + "px";
+  if (instant) {
+    /* force the browser to apply the instant values before transitions are restored */
+    void marker.offsetWidth;
+    marker.style.transition = "";
+    trav.style.transition = "";
+  }
+}
+
+function drawMarks() {
+  if (!chart) return;
+  for (var i = 0; i < 6; i++) {
+    chart.dots[i].setAttribute("class", "dot" + (i <= cur ? " done" : ""));
+    chart.labs[i].setAttribute("class", "lab" + (i === cur ? " on" : ""));
+    chart.guides[i].setAttribute("class", "guide" + (i === cur ? " on" : ""));
+  }
+}
+
+function setStage(i) {
+  cur = i;
+  var s = STAGES[i];
+  for (var j = 0; j < tabs.length; j++) {
+    tabs[j].setAttribute("aria-selected", j === i ? "true" : "false");
+    tabs[j].tabIndex = j === i ? 0 : -1;
+  }
+  $("p-title").innerHTML = "<span>" + (i + 1) + ".</span> " + s.name;
+  $("p-think").innerHTML = "";
+  $("p-think").appendChild(document.createTextNode(s.think));
+  $("p-feel").innerHTML = "";
+  $("p-feel").appendChild(document.createTextNode(s.feel));
+  var list = "";
+  for (var k = 0; k < s.act.length; k++) list += "<li>" + s.act[k] + "</li>";
+  $("p-act").innerHTML = list;
+  drawMarks();
+  drawPosition(false);
+}
+
+function setStep(n) {
+  var st = STORY[n];
+  var movedBack = n > 0 && st.s < STORY[n - 1].s;
+  step = n;
+  $("s-text").innerHTML = "";
+  $("s-text").appendChild(document.createTextNode(st.t));
+  var flag = $("s-flag");
+  flag.hidden = !movedBack;
+  flag.innerHTML = movedBack ? "Moves back to " + STAGES[st.s].name : "";
+  $("count").innerHTML = "Story step " + (n + 1) + " of " + STORY.length;
+  $("back").disabled = n === 0;
+  $("next").disabled = n === STORY.length - 1;
+  setStage(st.s);
+  announce("Step " + (n + 1) + " of " + STORY.length + ". Stage " + (st.s + 1) + ", " + STAGES[st.s].name +
+    (movedBack ? ". Maya moves back to " + STAGES[st.s].name : "") + ". " + st.t);
+  updatePlayLabel();
+  restartBar();
+}
+
+function goStage(i) {
+  var best = -1;
+  for (var n = 0; n < STORY.length; n++) {
+    if (STORY[n].s === i && (best < 0 || Math.abs(n - step) < Math.abs(best - step))) best = n;
+  }
+  setStep(best);
+}
+
+function announce(text) {
+  var a = $("announce");
+  a.innerHTML = "";
+  a.appendChild(document.createTextNode(text));
+}
+
+function updatePlayLabel() {
+  var b = $("play");
+  var label = playing ? "Pause" : (step === STORY.length - 1 ? "Replay" : (step === 0 ? "Play" : "Resume"));
+  b.innerHTML = (playing ? ICON_PAUSE : ICON_PLAY) + label;
+  b.setAttribute("aria-pressed", playing ? "true" : "false");
+}
+
+/* Autoplay is driven by the CSS progress-bar animation: when it ends, advance one step. */
+function restartBar() {
+  var bar = $("bar");
+  var clone = bar.cloneNode(false);
+  bar.parentNode.replaceChild(clone, bar);
+  clone.onanimationend = onBarEnd;
+}
+
+function onBarEnd() {
+  if (!playing) return;
+  if (step < STORY.length - 1) setStep(step + 1); else stopPlay();
+}
+
+function startPlay() {
+  playing = true;
+  $("root").className = "wrap playing";
+  if (step === STORY.length - 1) setStep(0); else restartBar();
+  updatePlayLabel();
+}
+
+function stopPlay() {
+  playing = false;
+  $("root").className = "wrap";
+  updatePlayLabel();
+}
+
+function onPlayClick() { if (playing) stopPlay(); else startPlay(); }
+function onBackClick() { stopPlay(); if (step > 0) setStep(step - 1); }
+function onNextClick() { stopPlay(); if (step < STORY.length - 1) setStep(step + 1); }
+
+function onResize() {
+  var w = $("chart").clientWidth;
+  if (w !== lastWidth) { lastWidth = w; buildChart(); }
+}
+
+function init() {
+  buildTabs();
+  $("play").onclick = onPlayClick;
+  $("back").onclick = onBackClick;
+  $("next").onclick = onNextClick;
+  $("bar").onanimationend = onBarEnd;
+  setStep(0);
+  lastWidth = $("chart").clientWidth;
+  buildChart();
+  window.onresize = onResize;
+}
+
+init();
+</script>
+</body>
+</html>
